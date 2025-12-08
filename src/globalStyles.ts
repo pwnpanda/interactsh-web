@@ -1,6 +1,7 @@
-import { createGlobalStyle } from "styled-components";
+import { createGlobalStyle } from 'styled-components';
+import { Theme } from '@/theme';
 
-export const GlobalStyles = createGlobalStyle`
+export const GlobalStyles = createGlobalStyle<{ theme: Theme }>`
   body {
     background: ${({ theme }) => theme.background};
   }
@@ -10,6 +11,7 @@ export const GlobalStyles = createGlobalStyle`
   .light_bg {
     background: ${({ theme }) => theme.lightBackground}!important;
   }
-  `;
+`;
 
 export default {};
+
