@@ -1,20 +1,14 @@
-/* eslint-disable jsx-a11y/no-static-element-interactions */
-/* eslint-disable jsx-a11y/click-events-have-key-events */
-import React, { useEffect, useState } from "react";
+'use client';
 
-import formatDistance from "date-fns/formatDistance";
-import { now } from "fp-ts/Date";
-import { pipe } from "fp-ts/function";
-
-import { ReactComponent as FilterIcon } from "assets/svg/filter.svg";
-import { ReactComponent as FilterSelectedIcon } from "assets/svg/filter_selected.svg";
-import { getStoredData, writeStoredData } from "lib/localStorage";
-import Data, { filterByProtocols } from "lib/types/data";
-import Filter from "lib/types/filter";
-import Protocol, { protocols } from "lib/types/protocol";
-import { trueKeys } from "lib/utils";
-
-import "./styles.scss";
+import React, { useEffect, useState } from 'react';
+import { formatDistance } from 'date-fns';
+import { FilterIcon, FilterSelectedIcon } from '@/components/icons';
+import { getStoredData, writeStoredData } from '@/lib/localStorage';
+import { Data, filterByProtocols } from '@/lib/types/data';
+import { Filter } from '@/lib/types/filter';
+import { Protocol, protocols } from '@/lib/types/protocol';
+import { trueKeys } from '@/lib/utils';
+import './styles.scss';
 
 interface RequestsTableP {
   data: Data[];
@@ -28,7 +22,7 @@ const RequestsTable = ({ data, handleRowClick, selectedInteraction, filter }: Re
   const [filterDropdownVisibility, setFilterDropdownVisibility] = useState<boolean>(false);
   const [filterValue, setFilterValue] = useState<Filter>(filter);
 
-  const isFiltered = pipe(filterValue, trueKeys).length !== protocols.length;
+  const isFiltered = trueKeys(filterValue).length !== protocols.length;
 
   const filterData = (f: Filter) => filterByProtocols(trueKeys(f))(data);
 
@@ -37,10 +31,10 @@ const RequestsTable = ({ data, handleRowClick, selectedInteraction, filter }: Re
   }, [data]);
 
   const handleFilterDropdownVisibility = () => {
-    const dropdownElement = document.getElementById("filter_dropdown");
+    const dropdownElement = document.getElementById('filter_dropdown');
     setFilterDropdownVisibility(!filterDropdownVisibility);
-    document.addEventListener("click", (e: any) => {
-      const isClickInsideElement = dropdownElement?.contains(e.target);
+    document.addEventListener('click', (e: MouseEvent) => {
+      const isClickInsideElement = dropdownElement?.contains(e.target as Node);
       if (!isClickInsideElement) {
         setFilterDropdownVisibility(false);
       }
@@ -48,15 +42,17 @@ const RequestsTable = ({ data, handleRowClick, selectedInteraction, filter }: Re
   };
 
   useEffect(() => {
-    window.addEventListener("storage", () => {
+    const handleStorageChange = () => {
       setFilterValue(getStoredData().filter);
-    });
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
 
-  const handleFilterSelection = (e: any) => {
-    const newFilterValue: typeof filterValue = {
+  const handleFilterSelection = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newFilterValue: Filter = {
       ...filterValue,
-      [e.target.value]: e.target.checked,
+      [e.target.value as Protocol]: e.target.checked,
     };
 
     setFilterValue(newFilterValue);
@@ -74,7 +70,7 @@ const RequestsTable = ({ data, handleRowClick, selectedInteraction, filter }: Re
           <th>
             <div id="filter_dropdown">
               <div
-                className={isFiltered ? "__filtered" : ""}
+                className={isFiltered ? '__filtered' : ''}
                 onClick={handleFilterDropdownVisibility}
               >
                 TYPE
@@ -84,7 +80,7 @@ const RequestsTable = ({ data, handleRowClick, selectedInteraction, filter }: Re
                 <div className="filter_dropdown secondary_bg">
                   <ul>
                     {protocols.map((p) => (
-                      <li>
+                      <li key={p}>
                         <label htmlFor={p}>
                           <input
                             onChange={handleFilterSelection}
@@ -111,11 +107,11 @@ const RequestsTable = ({ data, handleRowClick, selectedInteraction, filter }: Re
           <tr
             key={item.id}
             onClick={() => handleRowClick(item.id)}
-            className={item.id === selectedInteraction ? "selected_row" : ""}
+            className={item.id === selectedInteraction ? 'selected_row' : ''}
           >
             <td>{filteredData.length - i}</td>
             <td>
-              {formatDistance(new Date(item.timestamp), now(), {
+              {formatDistance(new Date(item.timestamp), new Date(), {
                 addSuffix: true,
               })}
             </td>
