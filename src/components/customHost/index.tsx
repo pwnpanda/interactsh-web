@@ -1,12 +1,10 @@
-import React, { useState } from "react";
+'use client';
 
-import { ReactComponent as ArrowRightIcon } from "assets/svg/arrow_right.svg";
-import { ReactComponent as CloseIcon } from "assets/svg/close.svg";
-import { ReactComponent as LoadingIcon } from "assets/svg/loader.svg";
-import "./styles.scss";
-import { register } from "lib";
-
-import { defaultStoredData, getStoredData, writeStoredData } from "../../lib/localStorage";
+import React, { useState } from 'react';
+import { ArrowRightIcon, CloseIcon, LoaderIcon } from '@/components/icons';
+import { register } from '@/lib';
+import { defaultStoredData, getStoredData, writeStoredData } from '@/lib/localStorage';
+import './styles.scss';
 
 interface CustomHostP {
   handleCloseDialog: () => void;
@@ -17,11 +15,15 @@ const CustomHost = ({ handleCloseDialog }: CustomHostP) => {
   const { host, token, correlationIdLength, correlationIdNonceLength } = data;
   const [isDeleteConfirmationVisible, setIsDeleteConfirmationVisible] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [errorText, setErrorText] = useState("");
-  const [inputValue, setInputValue] = useState<string>(host === "oast.fun" ? "" : host);
-  const [tokenInputValue, setTokenInputValue] = useState<string>(token === "" ? "" : token);
-  const [correlationIdLengthInputValue, setCorrelationIdLengthValue] = useState<number>(correlationIdLength === 20 ? 20 : correlationIdLength);
-  const [correlationIdNonceLengthInputValue, setCorrelationIdNonceLengthValue] = useState<number>(correlationIdNonceLength === 13 ? 13 : correlationIdNonceLength);
+  const [errorText, setErrorText] = useState('');
+  const [inputValue, setInputValue] = useState<string>(host === 'oast.fun' ? '' : host);
+  const [tokenInputValue, setTokenInputValue] = useState<string>(token === '' ? '' : token);
+  const [correlationIdLengthInputValue, setCorrelationIdLengthValue] = useState<number>(
+    correlationIdLength === 20 ? 20 : correlationIdLength
+  );
+  const [correlationIdNonceLengthInputValue, setCorrelationIdNonceLengthValue] = useState<number>(
+    correlationIdNonceLength === 13 ? 13 : correlationIdNonceLength
+  );
 
   const handleDeleteConfirmationVisibility = () => {
     setIsDeleteConfirmationVisible(!isDeleteConfirmationVisible);
@@ -29,16 +31,16 @@ const CustomHost = ({ handleCloseDialog }: CustomHostP) => {
 
   const handleInput: React.ChangeEventHandler<HTMLInputElement> = (e) => {
     switch (e.target.name) {
-      case "custom_host":
+      case 'custom_host':
         setInputValue(e.target.value);
         break;
-      case "token":
+      case 'token':
         setTokenInputValue(e.target.value);
         break;
-      case "cidl":
+      case 'cidl':
         setCorrelationIdLengthValue(parseInt(e.target.value, 10));
         break;
-      case "cidn":
+      case 'cidn':
         setCorrelationIdNonceLengthValue(parseInt(e.target.value, 10));
         break;
       default:
@@ -48,18 +50,19 @@ const CustomHost = ({ handleCloseDialog }: CustomHostP) => {
 
   const handleConfirm = () => {
     if (
-      (inputValue !== "" && inputValue !== "oast.fun" && host !== inputValue) ||
-      (inputValue !== "" && inputValue !== "oast.fun" && tokenInputValue !== token)
+      (inputValue !== '' && inputValue !== 'oast.fun' && host !== inputValue) ||
+      (inputValue !== '' && inputValue !== 'oast.fun' && tokenInputValue !== token)
     ) {
       setIsLoading(true);
       const oldData = getStoredData();
       setTimeout(() => {
-        writeStoredData({...getStoredData(), 
+        writeStoredData({
+          ...getStoredData(),
           correlationIdLength: correlationIdLengthInputValue,
-          correlationIdNonceLength: correlationIdNonceLengthInputValue
+          correlationIdNonceLength: correlationIdNonceLengthInputValue,
         });
         register(
-          inputValue.replace(/(^\w+:|^)\/\//, ""),
+          inputValue.replace(/(^\w+:|^)\/\//, ''),
           tokenInputValue,
           inputValue !== host && tokenInputValue === token,
           inputValue === host && tokenInputValue !== token
@@ -69,20 +72,20 @@ const CustomHost = ({ handleCloseDialog }: CustomHostP) => {
             writeStoredData(d);
             setIsLoading(false);
             handleCloseDialog();
-            setErrorText("");
+            setErrorText('');
             window.location.reload();
           })
           .catch((err) => {
-            if (err.message === "auth failed") {
+            if (err.message === 'auth failed') {
               setIsLoading(false);
-              setErrorText("Authentication failed, token not valid.");
+              setErrorText('Authentication failed, token not valid.');
             } else {
               setIsLoading(false);
               setErrorText(
-                "We were unable to establish a connection with your server; please try again by clicking on confirm."
+                'We were unable to establish a connection with your server; please try again by clicking on confirm.'
               );
             }
-            writeStoredData({...oldData});
+            writeStoredData({ ...oldData });
           });
       }, 30);
     }
@@ -92,9 +95,10 @@ const CustomHost = ({ handleCloseDialog }: CustomHostP) => {
     setIsLoading(true);
     const oldData = getStoredData();
     setTimeout(() => {
-      writeStoredData({...getStoredData(), 
+      writeStoredData({
+        ...getStoredData(),
         correlationIdLength: defaultStoredData.correlationIdLength,
-        correlationIdNonceLength: defaultStoredData.correlationIdNonceLength
+        correlationIdNonceLength: defaultStoredData.correlationIdNonceLength,
       });
       register(defaultStoredData.host, defaultStoredData.token, true, false)
         .then((d) => {
@@ -102,20 +106,20 @@ const CustomHost = ({ handleCloseDialog }: CustomHostP) => {
           writeStoredData(d);
           setIsLoading(false);
           handleCloseDialog();
-          setErrorText("");
+          setErrorText('');
           window.location.reload();
         })
         .catch((err) => {
-          if (err.message === "auth failed") {
+          if (err.message === 'auth failed') {
             setIsLoading(false);
-            setErrorText("Authentication failed, token not valid.");
+            setErrorText('Authentication failed, token not valid.');
           } else {
             setIsLoading(false);
             setErrorText(
-              "We were unable to establish a connection with your server; please try again by clicking on confirm."
+              'We were unable to establish a connection with your server; please try again by clicking on confirm.'
             );
           }
-          writeStoredData({...oldData});
+          writeStoredData({ ...oldData });
         });
     }, 30);
   };
@@ -126,11 +130,11 @@ const CustomHost = ({ handleCloseDialog }: CustomHostP) => {
         <div className="dialog_box">
           <div className="header">
             <span>Remove Custom Host</span>
-            <CloseIcon onClick={handleDeleteConfirmationVisibility} />
+            <CloseIcon onClick={handleDeleteConfirmationVisibility} style={{ cursor: 'pointer' }} />
           </div>
           <span>
-            Please confirm the action, this action can’t be undone and all the client data will be
-            delete immediately.
+            Please confirm the action, this action can&apos;t be undone and all the client data will be
+            deleted immediately.
           </span>
           <div className="buttons">
             <button
@@ -139,7 +143,7 @@ const CustomHost = ({ handleCloseDialog }: CustomHostP) => {
               disabled={isLoading}
               onClick={handleDelete}
             >
-              Delete {isLoading && <LoadingIcon />}
+              Delete {isLoading && <LoaderIcon />}
             </button>
           </div>
         </div>
@@ -147,7 +151,7 @@ const CustomHost = ({ handleCloseDialog }: CustomHostP) => {
         <div className="dialog_box">
           <div className="header">
             <span>Custom Host</span>
-            <CloseIcon onClick={handleCloseDialog} />
+            <CloseIcon onClick={handleCloseDialog} style={{ cursor: 'pointer' }} />
           </div>
           <span>
             You can point your self hosted oast.fun server below to connect with this web client.
@@ -163,7 +167,7 @@ const CustomHost = ({ handleCloseDialog }: CustomHostP) => {
             type="text"
             name="token"
             placeholder="Token (optional)"
-            disabled={inputValue === ""}
+            disabled={inputValue === ''}
             value={tokenInputValue}
             onChange={handleInput}
           />
@@ -175,7 +179,7 @@ const CustomHost = ({ handleCloseDialog }: CustomHostP) => {
               max="50"
               name="cidl"
               placeholder="Length of the correlation id preamble"
-              disabled={inputValue === ""}
+              disabled={inputValue === ''}
               value={correlationIdLengthInputValue}
               onChange={handleInput}
             />
@@ -188,14 +192,14 @@ const CustomHost = ({ handleCloseDialog }: CustomHostP) => {
               max="50"
               name="cidn"
               placeholder="Length of the correlation id nonce"
-              disabled={inputValue === ""}
+              disabled={inputValue === ''}
               value={correlationIdNonceLengthInputValue}
               onChange={handleInput}
             />
           </div>
-          {errorText !== "" && <div className="error">{errorText}</div>}
+          {errorText !== '' && <div className="error">{errorText}</div>}
           <div className="buttons">
-            {host !== "oast.fun" && (
+            {host !== 'oast.fun' && (
               <button
                 type="button"
                 className="remove_button"
@@ -207,11 +211,17 @@ const CustomHost = ({ handleCloseDialog }: CustomHostP) => {
             <button
               type="button"
               className="submit_button"
-              disabled={isLoading || (host === inputValue && token === tokenInputValue && correlationIdLength === correlationIdLengthInputValue && correlationIdNonceLength === correlationIdNonceLengthInputValue)}
+              disabled={
+                isLoading ||
+                (host === inputValue &&
+                  token === tokenInputValue &&
+                  correlationIdLength === correlationIdLengthInputValue &&
+                  correlationIdNonceLength === correlationIdNonceLengthInputValue)
+              }
               onClick={handleConfirm}
             >
               Confirm
-              {isLoading ? <LoadingIcon /> : <ArrowRightIcon />}
+              {isLoading ? <LoaderIcon /> : <ArrowRightIcon />}
             </button>
           </div>
         </div>

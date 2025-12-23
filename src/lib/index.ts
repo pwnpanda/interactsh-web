@@ -1,40 +1,33 @@
-/* eslint-disable prefer-destructuring */
-import crypto from "crypto";
+import { format } from 'date-fns';
+import downloadData from 'js-file-download';
+import NodeRSA from 'node-rsa';
+import { v4 as uuidv4 } from 'uuid';
 
-import format from "date-fns/format";
-import * as E from "fp-ts/Either";
-import { pipe } from "fp-ts/function";
-import * as J from "fp-ts/Json";
-import * as O from "fp-ts/Option";
-import * as R from "fp-ts/Record";
-import downloadData from "js-file-download";
-import NodeRSA from "node-rsa";
-import { v4 as uuidv4 } from "uuid";
+import { generateRandomString } from './utils';
+import { getStoredData, writeStoredData, defaultStoredData } from './localStorage';
+import { Data } from './types/data';
+import { defaultFilter } from './types/filter';
+import { StoredData } from './types/storedData';
+import { Tab } from './types/tab';
 
-import { generateRandomString } from "lib/utils";
+export { getStoredData, writeStoredData, defaultStoredData };
 
-import { getStoredData, writeStoredData } from "./localStorage";
-import Data from "./types/data";
-import { defaultFilter } from "./types/filter";
-import { StoredData } from "./types/storedData";
-import Tab from "./types/tab";
+export const copyDataToClipboard = (data: string): Promise<void> =>
+  navigator.clipboard.writeText(data);
 
-export const copyDataToClipboard = (data: string) => navigator.clipboard.writeText(data);
-
-export const generateUrl = (correlationId: string, correlationIdNonceLength: number, incrementNumber: number, host: string) => {
-  const timestamp = Math.floor(Date.now() / 1000);
-  const increment = incrementNumber;
-  const arr = new ArrayBuffer(8);
-  const view = new DataView(arr);
-  view.setUint32(0, timestamp, false);
-  view.setUint32(4, increment, false);
+export const generateUrl = (
+  correlationId: string,
+  correlationIdNonceLength: number,
+  incrementNumber: number,
+  host: string
+): { url: string; uniqueId: string } => {
   const randomId = generateRandomString(correlationIdNonceLength);
   const url = `${correlationId}${randomId}.${host}`;
   const uniqueId = `${correlationId}${randomId}`;
   return { url, uniqueId };
 };
 
-export const clearIntervals = () => {
+export const clearIntervals = (): void => {
   const currentTimeoutId = setTimeout(() => {
     let id = Number(currentTimeoutId);
     for (id; id > 0; id -= 1) {
@@ -44,36 +37,49 @@ export const clearIntervals = () => {
 };
 
 interface PolledData {
-  error?: any;
+  error?: string;
   aes_key: string;
   data: string[];
 }
 
-export const decryptAESKey = (privateKey: string, aesKey: string) => {
+export const decryptAESKey = (privateKey: string, aesKey: string): string => {
   const key = new NodeRSA({ b: 2048 });
   key.setOptions({
-    environment: "browser",
+    environment: 'browser',
     encryptionScheme: {
-      hash: "sha256",
-      scheme: "pkcs1_oaep", // TODO: Ensure that this is correct.
+      hash: 'sha256',
+      scheme: 'pkcs1_oaep',
     },
   });
-  key.importKey(privateKey, "pkcs8-private");
-  return key.decrypt(aesKey, "base64");
+  key.importKey(privateKey, 'pkcs8-private');
+  return key.decrypt(aesKey, 'base64');
 };
 
-export const processData = (aesKey: string, polledData: PolledData) => {
+// Use dynamic import for crypto to handle browser environment
+const getCrypto = async () => {
+  if (typeof window !== 'undefined') {
+    // Browser environment - use crypto-browserify
+    const crypto = await import('crypto-browserify');
+    return crypto.default || crypto;
+  }
+  // Node environment
+  const crypto = await import('crypto');
+  return crypto.default || crypto;
+};
+
+export const processData = async (aesKey: string, polledData: PolledData): Promise<Data[]> => {
   const { data } = polledData;
   let parsedData: Data[] = [];
+  
   if (data && data.length > 0) {
+    const crypto = await getCrypto();
     const decryptedData: string[] = data.map((item) => {
-      const iv = Buffer.from(item, "base64").slice(0, 16);
-      const key = Buffer.from(aesKey, "base64");
-      const decipher = crypto.createDecipheriv("aes-256-cfb", key, iv);
-      let mystr: any = decipher.update(Buffer.from(item, "base64").slice(16));
-      mystr += decipher.final("utf8");
-      const test: string = mystr;
-      return test;
+      const iv = Buffer.from(item, 'base64').slice(0, 16);
+      const key = Buffer.from(aesKey, 'base64');
+      const decipher = crypto.createDecipheriv('aes-256-cfb', key, iv);
+      let mystr: string = decipher.update(Buffer.from(item, 'base64').slice(16)).toString();
+      mystr += decipher.final('utf8');
+      return mystr;
     });
     parsedData = decryptedData.map((item) => ({
       ...JSON.parse(item),
@@ -84,33 +90,33 @@ export const processData = (aesKey: string, polledData: PolledData) => {
   return parsedData;
 };
 
-const getData = (key: string) =>
-  pipe(
-    O.tryCatch(() => localStorage.getItem(key)),
-    O.chain(O.fromNullable)
-  );
-
-export const handleResponseExport = (item : any) => {
-  const fileName = `${format(Date.now(), "yyyy-MM-dd_hh:mm")}_${item.protocol}_${item['remote-address']}_${item['full-id']}_${item.id}.txt`;
+export const handleResponseExport = (item: Data): void => {
+  const fileName = `${format(Date.now(), 'yyyy-MM-dd_hh:mm')}_${item.protocol}_${item['remote-address']}_${item['full-id']}_${item.id}.txt`;
   downloadData(item['raw-request'], fileName);
-}
+};
 
-export const handleDataExport = () => {
-  const values = pipe(
-    R.mapWithIndex((key) => ({ key, data: getData(key) }))(localStorage),
-    R.filterMap((x) => x.data),
-    J.stringify,
-    E.getOrElse(() => "An error occured") // TODO: Handle error case.
-  );
-
-  const fileName = `${format(Date.now(), "yyyy-MM-dd_hh:mm")}.json`;
-  downloadData(values, fileName);
+export const handleDataExport = (): void => {
+  if (typeof window === 'undefined') return;
+  
+  const values: Record<string, string> = {};
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (key) {
+      const value = localStorage.getItem(key);
+      if (value) {
+        values[key] = value;
+      }
+    }
+  }
+  
+  const fileName = `${format(Date.now(), 'yyyy-MM-dd_hh:mm')}.json`;
+  downloadData(JSON.stringify(values), fileName);
 };
 
 export const generateRegistrationParams = (correlationIdLength: number) => {
   const key = new NodeRSA({ b: 2048 });
-  const pub = key.exportKey("pkcs8-public-pem");
-  const priv = key.exportKey("pkcs8-private-pem");
+  const pub = key.exportKey('pkcs8-public-pem');
+  const priv = key.exportKey('pkcs8-private-pem');
   const correlation = generateRandomString(correlationIdLength, true);
   const secret = uuidv4().toString();
 
@@ -122,25 +128,21 @@ export const deregister = (
   correlationId: string,
   host: string,
   token?: string
-) => {
+): Promise<Response | void> => {
   const registerFetcherOptions = {
-    "secret-key": secretKey,
-    "correlation-id": correlationId,
+    'secret-key': secretKey,
+    'correlation-id': correlationId,
   };
 
-  const headers = [
-    { "Content-Type": "application/json" },
-    {
-      "Content-Type": "application/json",
-      Authorization: token,
-    },
-  ] as const;
+  const headers: Record<string, string> = token && token !== ''
+    ? { 'Content-Type': 'application/json', Authorization: token }
+    : { 'Content-Type': 'application/json' };
 
   return fetch(`https://${host}/deregister`, {
-    method: "POST",
-    cache: "no-cache",
-    headers: token && token !== "" ? headers[1] : headers[0],
-    referrerPolicy: "no-referrer",
+    method: 'POST',
+    cache: 'no-cache',
+    headers,
+    referrerPolicy: 'no-referrer',
     body: JSON.stringify(registerFetcherOptions),
   }).catch(() => {});
 };
@@ -150,51 +152,61 @@ export const register = (
   token: string,
   deregisterCurrentInstance: boolean,
   reregister: boolean
-) => {
+): Promise<StoredData> => {
   const currentData = getStoredData();
-  const { pub, priv, correlation, secret } = generateRegistrationParams(currentData.correlationIdLength);
+  const { pub, priv, correlation, secret } = generateRegistrationParams(
+    currentData.correlationIdLength
+  );
+  
   const registerFetcherOptions = reregister
     ? {
-        "public-key": btoa(currentData.publicKey),
-        "secret-key": currentData.secretKey,
-        "correlation-id": currentData.correlationId,
+        'public-key': btoa(currentData.publicKey),
+        'secret-key': currentData.secretKey,
+        'correlation-id': currentData.correlationId,
       }
     : {
-        "public-key": btoa(pub),
-        "secret-key": secret,
-        "correlation-id": correlation,
+        'public-key': btoa(pub),
+        'secret-key': secret,
+        'correlation-id': correlation,
       };
-  const contentType = { "Content-Type": "application/json" };
+
+  const contentType = { 'Content-Type': 'application/json' };
   const authorizationHeader = { Authorization: token };
 
   return fetch(`https://${host}/register`, {
-    method: "POST",
-    cache: "no-cache",
-    headers: token && token !== "" ? { ...contentType, ...authorizationHeader } : contentType,
-    referrerPolicy: "no-referrer",
+    method: 'POST',
+    cache: 'no-cache',
+    headers: token && token !== '' ? { ...contentType, ...authorizationHeader } : contentType,
+    referrerPolicy: 'no-referrer',
     body: JSON.stringify(registerFetcherOptions),
   }).then(async (res) => {
     if (res.status === 401) {
-      throw new Error("auth failed");
+      throw new Error('auth failed');
     }
     if (!res.ok) {
       const d = await res.json();
       throw new Error(d.error);
     }
 
-    const { url, uniqueId } = generateUrl(correlation, currentData.correlationIdNonceLength, 1, host);
+    const { url, uniqueId } = generateUrl(
+      correlation,
+      currentData.correlationIdNonceLength,
+      1,
+      host
+    );
+    
     const tabData: Tab[] = [
       {
-        "unique-id": uniqueId,
+        'unique-id': uniqueId,
         correlationId: correlation,
-        name: (1).toString(),
+        name: '1',
         url,
-        note: "",
+        note: '',
       },
     ];
 
     const data: StoredData = reregister
-      ? { ...currentData, aesKey: "", token }
+      ? { ...currentData, aesKey: '', token }
       : {
           privateKey: priv,
           publicKey: pub,
@@ -226,7 +238,7 @@ export const register = (
           tabs: tabData,
           selectedTab: tabData[0],
           data: [],
-          aesKey: "",
+          aesKey: '',
           notes: [],
           filter: defaultFilter,
         };
@@ -240,7 +252,7 @@ export const register = (
         currentData.correlationId,
         currentData.host,
         currentData.token
-      ).then(() => !reregister && window.location.reload());
+      ).then(() => !reregister && typeof window !== 'undefined' && window.location.reload());
     }
     return data;
   });
@@ -254,28 +266,28 @@ export const poll = (
   handleResetPopupDialogVisibility: () => void,
   handleCustomHostDialogVisibility: () => void
 ): Promise<PolledData> => {
-  const headers = {
-    Authorization: token,
-  };
+  const headers: Record<string, string> = token !== '' ? { Authorization: token } : {};
+  
   return fetch(`https://${host}/poll?id=${correlationId}&secret=${secretKey}`, {
-    method: "GET",
-    cache: "no-cache",
-    headers: token !== "" ? headers : {},
-    referrerPolicy: "no-referrer",
+    method: 'GET',
+    cache: 'no-cache',
+    headers,
+    referrerPolicy: 'no-referrer',
   })
-    .then(async (res: any) => {
+    .then(async (res) => {
       const status = res.status;
       const getRes = async (): Promise<PolledData> => {
         try {
           return await res.json();
         } catch {
-          return { aes_key: "", data: [] };
+          return { aes_key: '', data: [] };
         }
       };
       const data = await getRes();
+      
       if (!res.ok) {
         const err = data.error;
-        if (err === "could not get interactions: could not get correlation-id from cache") {
+        if (err === 'could not get interactions: could not get correlation-id from cache') {
           register(host, token, false, true)
             .then((d) => {
               writeStoredData(d);
@@ -283,7 +295,7 @@ export const poll = (
             .catch((err2) => {
               if (
                 err2.message !==
-                "could not set id and public key: correlation-id provided is invalid"
+                'could not set id and public key: correlation-id provided is invalid'
               ) {
                 clearIntervals();
                 handleResetPopupDialogVisibility();
@@ -291,7 +303,7 @@ export const poll = (
             });
         } else if (
           err ===
-          "could not set id and public key: could not read public Key: illegal base64 data at input byte 600"
+          'could not set id and public key: could not read public Key: illegal base64 data at input byte 600'
         ) {
           register(host, token, false, false)
             .then((d) => {
@@ -300,7 +312,7 @@ export const poll = (
             .catch((err2) => {
               if (
                 err2.message !==
-                "could not set id and public key: correlation-id provided is invalid"
+                'could not set id and public key: correlation-id provided is invalid'
               ) {
                 clearIntervals();
                 handleResetPopupDialogVisibility();

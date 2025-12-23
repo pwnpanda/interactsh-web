@@ -1,50 +1,76 @@
-import { summonFor, AsOpaque } from "@morphic-ts/batteries/lib/summoner-ESBST";
-import type { AType, EType } from "@morphic-ts/summoners";
+import { ThemeName } from '@/theme';
+import { Data } from './data';
+import { Discord } from './discord';
+import { Filter, defaultFilter } from './filter';
+import { Slack } from './slack';
+import { Tab } from './tab';
+import { Telegram } from './telegram';
+import { View } from './view';
 
-import { ThemeName } from "theme";
+export interface StoredData {
+  view: View;
+  increment: number;
+  correlationId: string;
+  correlationIdLength: number;
+  correlationIdNonceLength: number;
+  responseExport: boolean;
+  theme: ThemeName;
+  publicKey: string;
+  privateKey: string;
+  secretKey: string;
+  host: string;
+  token: string;
+  telegram: Telegram;
+  slack: Slack;
+  discord: Discord;
+  selectedTab: Tab;
+  tabs: Tab[];
+  data: Data[];
+  notes: string[];
+  aesKey: string;
+  filter: Filter;
+}
 
-import Data from "./data";
-import Discord from "./discord";
-import Filter from "./filter";
-import Slack from "./slack";
-import Tab from "./tab";
-import Telegram from "./telegram";
-import View from "./view";
+export const defaultStoredData: StoredData = {
+  theme: 'synth',
+  privateKey: '',
+  publicKey: '',
+  correlationId: '',
+  correlationIdLength: Number(process.env.NEXT_PUBLIC_CIDL) || 20,
+  correlationIdNonceLength: Number(process.env.NEXT_PUBLIC_CIDN) || 13,
+  responseExport: false,
+  secretKey: '',
+  data: [],
+  aesKey: '',
+  notes: [],
+  view: 'up_and_down',
+  increment: 1,
+  host: process.env.NEXT_PUBLIC_HOST || 'oast.fun',
+  tabs: [],
+  token: process.env.NEXT_PUBLIC_TOKEN || '',
+  telegram: {
+    enabled: false,
+    botToken: '',
+    chatId: '',
+  },
+  slack: {
+    enabled: false,
+    hookKey: '',
+    channel: '',
+  },
+  discord: {
+    enabled: false,
+    webhook: '',
+    channel: '',
+  },
+  selectedTab: {
+    'unique-id': '',
+    correlationId: '',
+    name: '1',
+    url: '',
+    note: '',
+  },
+  filter: defaultFilter,
+};
 
-const { summon } = summonFor<{}>({});
-
-// Data structure of localStorage
-export const StoredData_ = summon((F) =>
-  F.interface(
-    {
-      view: View(F),
-      increment: F.number(),
-      correlationId: F.string(),
-      correlationIdLength: F.number(),
-      correlationIdNonceLength: F.number(),
-      responseExport: F.boolean(),
-      theme: ThemeName(F),
-
-      publicKey: F.string(),
-      privateKey: F.string(),
-      secretKey: F.string(),
-
-      host: F.string(),
-      token: F.string(),
-      telegram: Telegram(F),
-      slack: Slack(F),
-      discord: Discord(F),
-      selectedTab: Tab(F),
-      tabs: F.array(Tab(F)),
-      data: F.array(Data(F)),
-      notes: F.array(F.string()),
-      aesKey: F.string(),
-      filter: Filter(F),
-    },
-    "StoredData"
-  )
-);
-
-export interface StoredData extends AType<typeof StoredData_> {}
-export interface StoredDataRaw extends EType<typeof StoredData_> {}
-export default AsOpaque<StoredDataRaw, StoredData>()(StoredData_);
+export default StoredData;

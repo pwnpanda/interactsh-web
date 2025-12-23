@@ -1,20 +1,16 @@
-/* eslint-disable jsx-a11y/no-static-element-interactions */
-/* eslint-disable jsx-a11y/click-events-have-key-events */
-import React, { useState } from "react";
+'use client';
 
-import { ReactComponent as CloseIcon } from "assets/svg/close.svg";
-import { ReactComponent as DeleteIcon } from "assets/svg/delete.svg";
-import { ReactComponent as DownloadIcon } from "assets/svg/download.svg";
-import { ReactComponent as LoadingIcon } from "assets/svg/loader.svg";
-import "./styles.scss";
-import { handleDataExport, register } from "lib";
-import { getStoredData, writeStoredData } from "lib/localStorage";
+import React, { useState } from 'react';
+import { CloseIcon, DeleteIcon, DownloadIcon, LoaderIcon } from '@/components/icons';
+import { handleDataExport, register } from '@/lib';
+import { getStoredData, writeStoredData } from '@/lib/localStorage';
+import './styles.scss';
 
-interface CustomHostP {
+interface ResetPopupP {
   handleCloseDialog: () => void;
 }
 
-const ResetPopup = ({ handleCloseDialog }: CustomHostP) => {
+const ResetPopup = ({ handleCloseDialog }: ResetPopupP) => {
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
   const handleConfirm = () => {
@@ -40,10 +36,10 @@ const ResetPopup = ({ handleCloseDialog }: CustomHostP) => {
       <div className="dialog_box">
         <div className="header">
           <span>Reset interactsh.com</span>
-          <CloseIcon onClick={handleCloseDialog} />
+          <CloseIcon onClick={handleCloseDialog} style={{ cursor: 'pointer' }} />
         </div>
         <span>
-          Please confirm the action, this action can’t be undone and all the client data will be
+          Please confirm the action, this action can&apos;t be undone and all the client data will be
           deleted immediately. You can download a copy of your data in JSON format by clicking the
           Export button below or in top right.
         </span>
@@ -59,7 +55,7 @@ const ResetPopup = ({ handleCloseDialog }: CustomHostP) => {
             className="confirm_button"
             onClick={handleConfirm}
           >
-            Confirm {isLoading ? <LoadingIcon /> : <DeleteIcon />}
+            Confirm {isLoading ? <LoaderIcon /> : <DeleteIcon />}
           </button>
         </div>
       </div>
