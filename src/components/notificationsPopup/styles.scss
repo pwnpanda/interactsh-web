@@ -1,4 +1,4 @@
-@import "../../breakpoints.scss";
+@use "../../breakpoints.scss" as *;
 @include for-size(xsmall) {
 }
 
@@ -98,6 +98,26 @@
         display: flex;
         flex-direction: column;
         padding: 0 20px;
+        input {
+          font-size: 1.5rem;
+          color: #6588ff;
+          letter-spacing: 0;
+          text-align: left;
+          height: 4rem;
+          padding: 1rem;
+          border: 1px solid #1c1c1c;
+          background: transparent;
+          border-radius: 0.6rem;
+          margin-bottom: 2rem;
+          &::placeholder {
+            color: #3c3c3c;
+          }
+          &:focus {
+            outline: none;
+            box-shadow: none;
+            border: 1px solid #6588ff;
+          }
+        }
         div {
           display: flex;
           button {
