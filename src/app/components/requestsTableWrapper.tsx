@@ -1,6 +1,6 @@
 'use client';
 
-import React, { Suspense } from 'react';
+import React, { Suspense, useMemo, memo } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
 import RequestsTable from '@/components/requestsTable';
 import { Data } from '@/lib/types/data';
@@ -17,29 +17,33 @@ interface RequestsTableWrapperP {
   filter: Filter;
 }
 
-const RequestsTableWrapper = ({
+const RequestsTableWrapper = memo(({
   data,
   handleRowClick,
   selectedInteraction,
   filter,
-}: RequestsTableWrapperP) => (
-  <div className="requests_table_container">
-    <ErrorBoundary
-      FallbackComponent={({ resetErrorBoundary }) => (
-        <RepoSidebarListErrorFallback retry={resetErrorBoundary} />
-      )}
-    >
-      <Suspense fallback={<RepoSidebarListFallback />}>
-        <RequestsTable
-          data={[...data].reverse()}
-          handleRowClick={handleRowClick}
-          selectedInteraction={selectedInteraction}
-          filter={filter}
-        />
-      </Suspense>
-    </ErrorBoundary>
-  </div>
-);
+}: RequestsTableWrapperP) => {
+  const reversedData = useMemo(() => [...data].reverse(), [data]);
+
+  return (
+    <div className="requests_table_container">
+      <ErrorBoundary
+        FallbackComponent={({ resetErrorBoundary }) => (
+          <RepoSidebarListErrorFallback retry={resetErrorBoundary} />
+        )}
+      >
+        <Suspense fallback={<RepoSidebarListFallback />}>
+          <RequestsTable
+            data={reversedData}
+            handleRowClick={handleRowClick}
+            selectedInteraction={selectedInteraction}
+            filter={filter}
+          />
+        </Suspense>
+      </ErrorBoundary>
+    </div>
+  );
+});
 
 export default RequestsTableWrapper;
 

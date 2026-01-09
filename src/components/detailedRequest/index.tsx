@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef, memo, useCallback } from 'react';
 import Prism from 'prismjs';
 import 'prismjs/themes/prism-dark.css';
 import 'prismjs/components/prism-http';
@@ -17,9 +17,31 @@ interface DetailedRequestP {
   protocol: Protocol;
 }
 
-const DetailedRequest = ({ title, data, view, protocol }: DetailedRequestP) => {
+const DetailedRequest = memo(({ title, data, view, protocol }: DetailedRequestP) => {
+  const codeRef = useRef<HTMLElement>(null);
+  const highlightTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   useEffect(() => {
-    Prism.highlightAll();
+    // Debounce Prism highlighting to prevent blocking during rapid selection
+    if (highlightTimeoutRef.current) {
+      clearTimeout(highlightTimeoutRef.current);
+    }
+    
+    highlightTimeoutRef.current = setTimeout(() => {
+      if (codeRef.current) {
+        Prism.highlightElement(codeRef.current);
+      }
+    }, 100);
+
+    return () => {
+      if (highlightTimeoutRef.current) {
+        clearTimeout(highlightTimeoutRef.current);
+      }
+    };
+  }, [data]);
+
+  const handleCopy = useCallback(() => {
+    copyDataToClipboard(data);
   }, [data]);
 
   return (
@@ -32,25 +54,14 @@ const DetailedRequest = ({ title, data, view, protocol }: DetailedRequestP) => {
     >
       <span>{title}</span>
       <div className="body">
-        <button type="button" className="copy_button" onClick={() => copyDataToClipboard(data)}>
+        <button type="button" className="copy_button" onClick={handleCopy}>
           Copy <CopyIcon />
         </button>
         <div className="pre_wrapper">
-          <pre className={`${
-                protocol === 'http'
-                  ? 'language-http'
-                  : protocol === 'dns'
-                  ? 'default'
-                  : protocol === 'smtp' && 'default'
-              }`}>
+          <pre className={protocol === 'http' ? 'language-http' : 'default'}>
             <code
-              className={`${
-                protocol === 'http'
-                  ? 'language-http'
-                  : protocol === 'dns'
-                  ? 'default'
-                  : protocol === 'smtp' && 'default'
-              }`}
+              ref={codeRef}
+              className={protocol === 'http' ? 'language-http' : 'default'}
             >
               {data}
             </code>
@@ -59,6 +70,6 @@ const DetailedRequest = ({ title, data, view, protocol }: DetailedRequestP) => {
       </div>
     </div>
   );
-};
+});
 
 export default DetailedRequest;

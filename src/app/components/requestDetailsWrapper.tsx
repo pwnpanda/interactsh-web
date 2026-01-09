@@ -1,10 +1,9 @@
 'use client';
 
-import React, { Suspense } from 'react';
+import React, { Suspense, memo } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
 import DetailedRequest from '@/components/detailedRequest';
 import { Data } from '@/lib/types/data';
-import { Protocol } from '@/lib/types/protocol';
 import { View } from '@/lib/types/view';
 import { IssuesListFallback, IssuesListErrorFallback } from '@/helpers/fallback-loaders';
 
@@ -13,9 +12,8 @@ interface RequestDetailsWrapperP {
   selectedInteractionData: Data;
 }
 
-const RequestDetailsWrapper = (props: RequestDetailsWrapperP) => {
+const RequestDetailsWrapper = memo((props: RequestDetailsWrapperP) => {
   const { selectedInteractionData, view } = props;
-  console.log(selectedInteractionData.protocol);
 
   return (
     <div
@@ -63,7 +61,7 @@ const RequestDetailsWrapper = (props: RequestDetailsWrapperP) => {
       </ErrorBoundary>
     </div>
   );
-};
+});
 
 export default RequestDetailsWrapper;
 

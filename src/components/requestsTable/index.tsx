@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback, useMemo, useRef, memo } from 'react';
 import { formatDistance } from 'date-fns';
 import { FilterIcon, FilterSelectedIcon } from '@/components/icons';
 import { getStoredData, writeStoredData } from '@/lib/localStorage';
@@ -17,29 +17,40 @@ interface RequestsTableP {
   filter: Filter;
 }
 
-const RequestsTable = ({ data, handleRowClick, selectedInteraction, filter }: RequestsTableP) => {
-  const [filteredData, setFilteredData] = useState<Data[]>(data);
+const RequestsTable = memo(({ data, handleRowClick, selectedInteraction, filter }: RequestsTableP) => {
   const [filterDropdownVisibility, setFilterDropdownVisibility] = useState<boolean>(false);
   const [filterValue, setFilterValue] = useState<Filter>(filter);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   const isFiltered = trueKeys(filterValue).length !== protocols.length;
 
-  const filterData = (f: Filter) => filterByProtocols(trueKeys(f))(data);
+  const filteredData = useMemo(() => {
+    const activeProtocols = trueKeys(filterValue);
+    return filterByProtocols(activeProtocols)(data);
+  }, [data, filterValue]);
 
   useEffect(() => {
-    setFilteredData(filterData(filterValue));
-  }, [data]);
+    if (!filterDropdownVisibility) return;
 
-  const handleFilterDropdownVisibility = () => {
-    const dropdownElement = document.getElementById('filter_dropdown');
-    setFilterDropdownVisibility(!filterDropdownVisibility);
-    document.addEventListener('click', (e: MouseEvent) => {
-      const isClickInsideElement = dropdownElement?.contains(e.target as Node);
-      if (!isClickInsideElement) {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
         setFilterDropdownVisibility(false);
       }
-    });
-  };
+    };
+
+    const timeoutId = setTimeout(() => {
+      document.addEventListener('click', handleClickOutside);
+    }, 0);
+
+    return () => {
+      clearTimeout(timeoutId);
+      document.removeEventListener('click', handleClickOutside);
+    };
+  }, [filterDropdownVisibility]);
+
+  const handleFilterDropdownVisibility = useCallback(() => {
+    setFilterDropdownVisibility(prev => !prev);
+  }, []);
 
   useEffect(() => {
     const handleStorageChange = () => {
@@ -57,8 +68,6 @@ const RequestsTable = ({ data, handleRowClick, selectedInteraction, filter }: Re
 
     setFilterValue(newFilterValue);
     writeStoredData({ ...getStoredData(), filter: newFilterValue });
-
-    setFilteredData(filterData(newFilterValue));
   };
 
   return (
@@ -68,7 +77,7 @@ const RequestsTable = ({ data, handleRowClick, selectedInteraction, filter }: Re
           <th>#</th>
           <th>TIME</th>
           <th>
-            <div id="filter_dropdown">
+            <div id="filter_dropdown" ref={dropdownRef}>
               <div
                 className={isFiltered ? '__filtered' : ''}
                 onClick={handleFilterDropdownVisibility}
@@ -104,23 +113,53 @@ const RequestsTable = ({ data, handleRowClick, selectedInteraction, filter }: Re
       </thead>
       <tbody>
         {filteredData.map((item, i) => (
-          <tr
+          <TableRow
             key={item.id}
-            onClick={() => handleRowClick(item.id)}
-            className={item.id === selectedInteraction ? 'selected_row' : ''}
-          >
-            <td>{filteredData.length - i}</td>
-            <td>
-              {formatDistance(new Date(item.timestamp), new Date(), {
-                addSuffix: true,
-              })}
-            </td>
-            <td>{item.protocol}</td>
-          </tr>
+            item={item}
+            index={i}
+            total={filteredData.length}
+            isSelected={item.id === selectedInteraction}
+            onClick={handleRowClick}
+          />
         ))}
       </tbody>
     </table>
   );
-};
+});
+
+const TableRow = memo(({ 
+  item, 
+  index, 
+  total, 
+  isSelected, 
+  onClick 
+}: { 
+  item: Data; 
+  index: number; 
+  total: number; 
+  isSelected: boolean; 
+  onClick: (id: string) => void;
+}) => {
+  const handleClick = useCallback(() => {
+    onClick(item.id);
+  }, [onClick, item.id]);
+
+  // Memoize the formatted time to prevent recalculation on every render
+  const formattedTime = useMemo(() => 
+    formatDistance(new Date(item.timestamp), new Date(), { addSuffix: true }),
+    [item.timestamp]
+  );
+
+  return (
+    <tr
+      onClick={handleClick}
+      className={isSelected ? 'selected_row' : ''}
+    >
+      <td>{total - index}</td>
+      <td>{formattedTime}</td>
+      <td>{item.protocol}</td>
+    </tr>
+  );
+});
 
 export default RequestsTable;

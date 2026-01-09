@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { format } from 'date-fns';
 import { ThemeProvider } from 'styled-components';
 
@@ -23,7 +23,6 @@ import {
   processData,
   handleResponseExport,
   copyDataToClipboard,
-  clearIntervals,
   register,
 } from '@/lib';
 import { notifyTelegram, notifySlack, notifyDiscord } from '@/lib/notify';
@@ -32,7 +31,7 @@ import { StoredData } from '@/lib/types/storedData';
 import { Tab } from '@/lib/types/tab';
 import { View } from '@/lib/types/view';
 import { ThemeName, getTheme } from '@/theme';
-import { writeStoredData, getStoredData, defaultStoredData } from '@/lib/localStorage';
+import { writeStoredData, getStoredData, defaultStoredData, flushStoredData } from '@/lib/localStorage';
 import RequestDetailsWrapper from './components/requestDetailsWrapper';
 import RequestsTableWrapper from './components/requestsTableWrapper';
 import './styles.scss';
@@ -50,11 +49,15 @@ const HomePage = () => {
   const [storedData, setStoredData] = useState<StoredData>(defaultStoredData);
   const [isCustomHostDialogVisible, setIsCustomHostDialogVisible] = useState(false);
   const [isClient, setIsClient] = useState(false);
+  const hasLoadedInitialData = useRef(false);
+  const filteredDataRef = useRef<Array<Data>>([]);
 
   // Initialize stored data on client side
   useEffect(() => {
     setIsClient(true);
-    setStoredData(getStoredData());
+    const loadedData = getStoredData();
+    setStoredData(loadedData);
+    hasLoadedInitialData.current = true;
   }, []);
 
   const handleResetPopupDialogVisibility = useCallback(() => {
@@ -123,11 +126,13 @@ const HomePage = () => {
     });
   };
 
-  const handleRowClick = (id: string) => {
+  const handleRowClick = useCallback((id: string) => {
     setSelectedInteraction(id);
-    const reqDetails = filteredData && filteredData[filteredData.findIndex((item) => item.id === id)];
-    setSelectedInteractionData(reqDetails);
-  };
+    const reqDetails = filteredDataRef.current.find((item) => item.id === id);
+    if (reqDetails) {
+      setSelectedInteractionData(reqDetails);
+    }
+  }, []);
 
   const handleDeleteTab = (tab: Tab) => {
     const { tabs } = storedData;
@@ -179,6 +184,7 @@ const HomePage = () => {
       ...storedData,
       data: tempData,
     });
+    filteredDataRef.current = [];
     setFilteredData([]);
   };
 
@@ -199,7 +205,8 @@ const HomePage = () => {
       );
 
       setIsRegistered(true);
-      if (pollData?.data?.length !== 0 && !pollData.error) {
+      
+      if (pollData?.data?.length > 0 && !pollData.error) {
         if (pollData.aes_key) {
           decryptedAESKey = decryptAESKey(privateKey, pollData.aes_key);
         }
@@ -236,9 +243,9 @@ const HomePage = () => {
         });
 
         const newData = combinedData
-          .filter((item) => item['unique-id'] === dataFromLocalStorage.selectedTab['unique-id'])
-          .map((item) => item);
-        setFilteredData([...newData]);
+          .filter((item) => item['unique-id'] === dataFromLocalStorage.selectedTab['unique-id']);
+        filteredDataRef.current = newData;
+        setFilteredData(newData);
       }
     } catch (error) {
       console.error(error);
@@ -248,7 +255,9 @@ const HomePage = () => {
   }, [handleResetPopupDialogVisibility, handleCustomHostDialogVisibility]);
 
   useEffect(() => {
-    writeStoredData(storedData);
+    if (hasLoadedInitialData.current) {
+      writeStoredData(storedData);
+    }
   }, [storedData]);
 
   useEffect(() => {
@@ -261,18 +270,16 @@ const HomePage = () => {
     window.addEventListener('storage', handleStorageChange);
     setIsRegistered(true);
 
+    let registrationIntervalId: number | undefined;
+
     if (storedData.correlationId === '') {
       setLoaderAnimationMode('loading');
       setIsRegistered(false);
-      setTimeout(() => {
+      const timeoutId = setTimeout(() => {
         register(storedData.host, storedData.token, false, false)
           .then((data) => {
             setStoredData(data);
-            const intervalId = window.setInterval(() => {
-              processPolledData();
-            }, 4000);
             setIsRegistered(true);
-            return intervalId;
           })
           .catch(() => {
             localStorage.clear();
@@ -281,6 +288,14 @@ const HomePage = () => {
             setIsRegistered(false);
           });
       }, 1500);
+
+      return () => {
+        clearTimeout(timeoutId);
+        window.removeEventListener('storage', handleStorageChange);
+        if (registrationIntervalId) {
+          window.clearInterval(registrationIntervalId);
+        }
+      };
     }
 
     return () => {
@@ -288,21 +303,65 @@ const HomePage = () => {
     };
   }, [isClient]);
 
+  const pollingIntervalRef = useRef<number | undefined>(undefined);
+  const isPageVisibleRef = useRef(true);
+
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      isPageVisibleRef.current = !document.hidden;
+      
+      if (document.hidden) {
+        if (pollingIntervalRef.current) {
+          window.clearInterval(pollingIntervalRef.current);
+          pollingIntervalRef.current = undefined;
+        }
+        flushStoredData();
+      } else if (isClient && storedData.tabs.length > 0) {
+        if (!pollingIntervalRef.current) {
+          processPolledData(); // Immediate poll on return
+          pollingIntervalRef.current = window.setInterval(() => {
+            processPolledData();
+          }, 4000);
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    const handleBeforeUnload = () => {
+      flushStoredData();
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [isClient, storedData.tabs.length, processPolledData]);
+
   useEffect(() => {
     if (!isClient || storedData.tabs.length === 0) return;
 
-    clearIntervals();
-    const intervalId = window.setInterval(() => {
-      processPolledData();
-    }, 4000);
+    if (pollingIntervalRef.current) {
+      window.clearInterval(pollingIntervalRef.current);
+    }
+
+    if (isPageVisibleRef.current) {
+      pollingIntervalRef.current = window.setInterval(() => {
+        processPolledData();
+      }, 4000);
+    }
 
     const tempFilteredData = storedData.data
-      .filter((item) => item['unique-id'] === storedData.selectedTab['unique-id'])
-      .map((item) => item);
+      .filter((item) => item['unique-id'] === storedData.selectedTab['unique-id']);
+    filteredDataRef.current = tempFilteredData;
     setFilteredData(tempFilteredData);
 
     return () => {
-      window.clearInterval(intervalId);
+      if (pollingIntervalRef.current) {
+        window.clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = undefined;
+      }
     };
   }, [storedData.selectedTab, isClient, processPolledData]);
 
@@ -310,13 +369,15 @@ const HomePage = () => {
     item === storedData.selectedTab
   );
 
+  const theme = useMemo(() => getTheme(storedData.theme), [storedData.theme]);
+
   if (!isClient) {
     return null;
   }
 
   return (
-    <ThemeProvider theme={getTheme(storedData.theme)}>
-      <GlobalStyles theme={getTheme(storedData.theme)} />
+    <ThemeProvider theme={theme}>
+      <GlobalStyles theme={theme} />
       <div className="main">
         <AppLoader isRegistered={isRegistered} mode={loaderAnimationMode} />
         {aboutPopupVisibility && (
@@ -365,7 +426,7 @@ const HomePage = () => {
         <TabSwitcher
           handleTabButtonClick={handleTabButtonClick}
           selectedTab={storedData.selectedTab}
-          data={[...storedData.tabs]}
+          data={storedData.tabs}
           handleAddNewTab={handleAddNewTab}
           handleDeleteTab={handleDeleteTab}
           handleTabRename={handleTabRename}
@@ -391,7 +452,7 @@ const HomePage = () => {
               />
             </div>
             <RequestsTableWrapper
-              data={[...filteredData]}
+              data={filteredData}
               selectedInteraction={selectedInteraction || ''}
               handleRowClick={handleRowClick}
               filter={storedData.filter}
